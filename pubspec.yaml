@@ -1,0 +1,58 @@
+name: callnusa_mobile
+description: "CallNusa — open-source SIP softphone for the CallNusa call-center platform."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # State
+  flutter_riverpod: ^3.4.3
+
+  # Navigation
+  go_router: ^17.5.0
+
+  # Networking
+  dio: ^5.11.1
+  connectivity_plus: ^7.3.1
+
+  # Storage
+  flutter_secure_storage: ^11.0.0   # tokens + SIP secret (keystore/keychain)
+  hive_ce: ^2.19.3                  # non-secret cache: history, settings
+  hive_ce_flutter: ^2.3.4
+
+  # Push + native call UX
+  firebase_core: ^4.14.0
+  firebase_messaging: ^16.6.0
+  flutter_callkit_incoming: ^3.1.5  # CallKit (iOS) / Telecom (Android)
+
+  # Platform utils
+  permission_handler: ^13.0.2
+  package_info_plus: ^10.2.1
+  url_launcher: ^6.3.2
+  flutter_dotenv: ^6.0.1
+  uuid: ^4.6.0
+  intl: 0.20.2
+  cupertino_icons: ^1.0.8
+  meta: ^1.18.0
+  path_provider: ^2.1.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  mocktail: ^1.0.5
+
+flutter:
+  uses-material-design: true
+  generate: true          # builds lib/l10n/*.arb -> AppLocalizations
+  assets:
+    - .env.development
+    - .env.staging
+    - .env.production
