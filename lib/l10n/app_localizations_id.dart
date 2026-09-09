@@ -291,4 +291,32 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get errorUnknown => 'Terjadi kesalahan. Silakan coba lagi.';
+
+  @override
+  String get errorRateLimited =>
+      'Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.';
+
+  @override
+  String get errorPlanLimit =>
+      'Paket organisasi Anda tidak mengizinkan perangkat ini disiapkan. Hubungi administrator.';
+
+  @override
+  String get errorDeviceUnavailable =>
+      'Perangkat ini telah dicabut. Keluar lalu masuk kembali untuk mendaftarkannya sebagai perangkat baru.';
+
+  @override
+  String get forgotPassword => 'Lupa kata sandi?';
+
+  @override
+  String get forgotPasswordBody =>
+      'Masukkan email Anda dan kami akan mengirimkan tautan reset.';
+
+  @override
+  String get forgotPasswordSent => 'Jika akun ada, tautan reset telah dikirim.';
+
+  @override
+  String get send => 'Kirim';
+
+  @override
+  String get phoneNotReady => 'Layanan telepon belum siap.';
 }

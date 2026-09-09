@@ -20,16 +20,12 @@ class CallHistoryRepository {
     try {
       final response = await _api.get(
         ApiEndpoints.calls,
-        query: {
-          'per_page': AppConstants.historyPageSize,
-          if (filter != HistoryFilter.all) 'filter': filter.name,
-        },
+        // The backend has no filter param; filtering is local (matches()).
+        query: {'per_page': AppConstants.historyPageSize},
       );
       final rows = (response['data'] as List? ?? const [])
           .cast<Map<String, dynamic>>()
-          .map(
-            (row) => CallHistoryEntry.fromJson(row).copyWith(isLocal: false),
-          );
+          .map(CallHistoryEntry.fromApi);
       await _dao.upsertAll(rows);
       log.info('history', 'synced ${rows.length} entries');
     } on AppException catch (e) {

@@ -9,17 +9,24 @@ import '../../core/sip/sip_models.dart';
 String messageFor(AppLocalizations l10n, Object? error) {
   if (error is AppException) {
     return switch (error.code) {
-      'AUTH_INVALID_CREDENTIALS' => l10n.errorInvalidCredentials,
-      'AUTH_SESSION_EXPIRED' => l10n.errorSessionExpired,
-      'AUTH_ACCOUNT_DISABLED' => l10n.errorAccountDisabled,
+      'INVALID_CREDENTIALS' => l10n.errorInvalidCredentials,
+      'AUTH_SESSION_EXPIRED' ||
+      'INVALID_REFRESH_TOKEN' ||
+      'UNAUTHENTICATED' => l10n.errorSessionExpired,
+      'ACCOUNT_INACTIVE' => l10n.errorAccountDisabled,
+      'RATE_LIMITED' => l10n.errorRateLimited,
+      'VALIDATION_ERROR' => _firstDetail(error) ?? l10n.errorUnknown,
       'PROVISIONING_NO_EXTENSION' => l10n.errorNoExtension,
+      'PROVISIONING_PLAN_LIMIT' => l10n.errorPlanLimit,
       'PROVISIONING_INVALID_CONFIG' => l10n.errorInvalidConfig,
       'DEVICE_LIMIT_EXCEEDED' => l10n.errorDeviceLimit,
+      'DEVICE_UNAVAILABLE' => l10n.errorDeviceUnavailable,
       'MIC_PERMISSION_DENIED' => l10n.errorMicPermission,
       'NETWORK_UNAVAILABLE' => l10n.errorNetwork,
       _ => switch (error.kind) {
         AppErrorKind.network => l10n.errorNetwork,
         AppErrorKind.timeout => l10n.errorTimeout,
+        AppErrorKind.rateLimited => l10n.errorRateLimited,
         AppErrorKind.unauthorized => l10n.errorSessionExpired,
         AppErrorKind.server => l10n.errorServer,
         AppErrorKind.sip => l10n.errorSipRegistration,
@@ -29,6 +36,16 @@ String messageFor(AppLocalizations l10n, Object? error) {
     };
   }
   return l10n.errorUnknown;
+}
+
+/// First field-level message from `error.details`, e.g.
+/// `{"email": ["The email field is required."]}`.
+String? _firstDetail(AppException e) {
+  for (final v in e.details.values) {
+    if (v is List && v.isNotEmpty) return '${v.first}';
+    if (v is String) return v;
+  }
+  return null;
 }
 
 /// Why the last call ended, in words.

@@ -57,7 +57,7 @@ class AuthInterceptor extends QueuedInterceptor {
   final Future<void> Function() onSessionExpired;
   final Dio _refreshClient;
 
-  Future<bool>? _refreshing;
+  Future<_RefreshOutcome>? _refreshing;
 
   @override
   Future<void> onError(
@@ -78,8 +78,10 @@ class AuthInterceptor extends QueuedInterceptor {
     final refreshed = await (_refreshing ??= _refresh());
     _refreshing = null;
 
-    if (!refreshed) {
-      await onSessionExpired();
+    if (refreshed != _RefreshOutcome.ok) {
+      // A transient network failure must not sign the user out; only a
+      // rejected refresh token (INVALID_REFRESH_TOKEN) ends the session.
+      if (refreshed == _RefreshOutcome.rejected) await onSessionExpired();
       return handler.next(err);
     }
 
@@ -94,9 +96,9 @@ class AuthInterceptor extends QueuedInterceptor {
     }
   }
 
-  Future<bool> _refresh() async {
+  Future<_RefreshOutcome> _refresh() async {
     final refreshToken = await storage.refreshToken;
-    if (refreshToken == null) return false;
+    if (refreshToken == null) return _RefreshOutcome.rejected;
     try {
       final response = await _refreshClient.post<Map<String, dynamic>>(
         ApiEndpoints.refresh,
@@ -109,13 +111,23 @@ class AuthInterceptor extends QueuedInterceptor {
         refreshToken: data['refresh_token'] as String?,
       );
       log.info('api', 'access token refreshed');
-      return true;
+      return _RefreshOutcome.ok;
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      log.warn('api', 'token refresh failed: http $status');
+      // 401 = INVALID_REFRESH_TOKEN (single-use token already consumed or
+      // expired). Anything else (timeout, 5xx) is retried on the next 401.
+      return status == 401
+          ? _RefreshOutcome.rejected
+          : _RefreshOutcome.transient;
     } catch (e) {
       log.warn('api', 'token refresh failed: $e');
-      return false;
+      return _RefreshOutcome.transient;
     }
   }
 }
+
+enum _RefreshOutcome { ok, rejected, transient }
 
 /// Converts Dio failures into [AppException] so no layer above the API client
 /// has to know about Dio.
@@ -148,6 +160,8 @@ class ErrorMappingInterceptor extends Interceptor {
         401 => AppErrorKind.unauthorized,
         403 => AppErrorKind.forbidden,
         404 => AppErrorKind.notFound,
+        422 => AppErrorKind.validation,
+        429 => AppErrorKind.rateLimited,
         >= 500 => AppErrorKind.server,
         _ => AppErrorKind.unknown,
       },
@@ -158,6 +172,10 @@ class ErrorMappingInterceptor extends Interceptor {
       code: code,
       statusCode: status,
       message: error is Map ? error['message'] as String? : null,
+      details: error is Map
+          ? (error['details'] as Map?)?.cast<String, dynamic>() ?? const {}
+          : const {},
+      correlationId: err.response?.headers.value('x-correlation-id'),
     );
   }
 }
@@ -185,10 +203,11 @@ class LoggingInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
+    final cid = err.response?.headers.value('x-correlation-id');
     log.warn(
       'api',
       '✗ ${err.response?.statusCode ?? err.type.name} '
-          '${err.requestOptions.path}',
+          '${err.requestOptions.path}${cid == null ? '' : ' cid=$cid'}',
     );
     handler.next(err);
   }

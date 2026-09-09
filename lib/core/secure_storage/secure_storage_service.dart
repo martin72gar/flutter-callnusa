@@ -83,8 +83,20 @@ class SecureStorageService {
     return generated;
   }
 
-  /// Wipes the session. [AppConstants.kDeviceId] survives so the backend can
-  /// still recognise the installation on the next login.
+  Future<String?> get devicePublicId =>
+      _storage.read(key: AppConstants.kDevicePublicId);
+
+  Future<void> saveDevicePublicId(String id) =>
+      _storage.write(key: AppConstants.kDevicePublicId, value: id);
+
+  /// Forgets this installation's identity. Used after `DELETE /devices/{id}`,
+  /// which blacklists the old `device_uid` server-side.
+  Future<void> rotateDeviceId() => Future.wait([
+    _storage.delete(key: AppConstants.kDeviceId),
+    _storage.delete(key: AppConstants.kDevicePublicId),
+  ]);
+
+  /// Wipes the session. The device id is handled by [rotateDeviceId].
   Future<void> clearSession() async {
     await Future.wait([
       _storage.delete(key: AppConstants.kAccessToken),

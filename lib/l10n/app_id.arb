@@ -1,7 +1,6 @@
 {
   "@@locale": "id",
   "appName": "CallNusa",
-
   "loginTitle": "Masuk",
   "loginSubtitle": "Masuk dengan akun CallNusa Anda",
   "emailLabel": "Email",
@@ -11,24 +10,19 @@
   "emailRequired": "Masukkan alamat email Anda",
   "emailInvalid": "Alamat email tidak valid",
   "passwordRequired": "Masukkan kata sandi Anda",
-
   "tabDialer": "Panggil",
   "tabHistory": "Riwayat",
   "tabSettings": "Pengaturan",
-
   "registrationConnecting": "Menghubungkan…",
   "registrationRegistered": "Siap",
   "registrationRefreshing": "Memperbarui…",
   "registrationFailed": "Tidak terhubung",
   "registrationUnregistered": "Luring",
   "registrationRetryIn": "Mencoba lagi dalam {seconds} dtk",
-
   "extensionLabel": "Ekstensi {extension}",
-
   "dialerHint": "Masukkan nomor atau ekstensi",
   "call": "Panggil",
   "outboundCallingDisabled": "Panggilan keluar dinonaktifkan untuk akun Anda",
-
   "incomingCall": "Panggilan masuk",
   "outgoingCall": "Memanggil…",
   "callRinging": "Berdering…",
@@ -38,7 +32,6 @@
   "callEnded": "Panggilan berakhir",
   "callFailed": "Panggilan gagal",
   "unknownCaller": "Tidak dikenal",
-
   "mute": "Bisukan",
   "unmute": "Aktifkan mik",
   "hold": "Tahan",
@@ -49,7 +42,6 @@
   "decline": "Tolak",
   "hangUp": "Akhiri",
   "recordingNotice": "Panggilan ini dapat direkam",
-
   "historyTitle": "Riwayat panggilan",
   "filterAll": "Semua",
   "filterMissed": "Tak terjawab",
@@ -61,7 +53,6 @@
   "failed": "Gagal",
   "today": "Hari ini",
   "yesterday": "Kemarin",
-
   "settingsTitle": "Pengaturan",
   "sectionAudio": "Audio",
   "sectionNotifications": "Notifikasi",
@@ -84,7 +75,6 @@
   "cancel": "Batal",
   "retry": "Coba lagi",
   "ok": "OK",
-
   "errorNetwork": "Tidak ada koneksi. Periksa jaringan Anda lalu coba lagi.",
   "errorTimeout": "Server terlalu lama merespons.",
   "errorInvalidCredentials": "Email atau kata sandi salah.",
@@ -99,5 +89,13 @@
   "errorBusy": "Saluran sedang sibuk.",
   "errorNotFound": "Nomor tersebut tidak ada.",
   "errorMicPermission": "Akses mikrofon diperlukan untuk melakukan panggilan.",
-  "errorUnknown": "Terjadi kesalahan. Silakan coba lagi."
+  "errorUnknown": "Terjadi kesalahan. Silakan coba lagi.",
+  "errorRateLimited": "Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.",
+  "errorPlanLimit": "Paket organisasi Anda tidak mengizinkan perangkat ini disiapkan. Hubungi administrator.",
+  "errorDeviceUnavailable": "Perangkat ini telah dicabut. Keluar lalu masuk kembali untuk mendaftarkannya sebagai perangkat baru.",
+  "forgotPassword": "Lupa kata sandi?",
+  "forgotPasswordBody": "Masukkan email Anda dan kami akan mengirimkan tautan reset.",
+  "forgotPasswordSent": "Jika akun ada, tautan reset telah dikirim.",
+  "send": "Kirim",
+  "phoneNotReady": "Layanan telepon belum siap."
 }

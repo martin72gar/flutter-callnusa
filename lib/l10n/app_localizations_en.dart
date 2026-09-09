@@ -289,4 +289,33 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get errorUnknown => 'Something went wrong. Please try again.';
+
+  @override
+  String get errorRateLimited =>
+      'Too many attempts. Please wait a moment and try again.';
+
+  @override
+  String get errorPlanLimit =>
+      'Your organisation\'s plan does not allow this device to be provisioned. Contact your administrator.';
+
+  @override
+  String get errorDeviceUnavailable =>
+      'This device has been revoked. Sign out and sign in again to register it as a new device.';
+
+  @override
+  String get forgotPassword => 'Forgot password?';
+
+  @override
+  String get forgotPasswordBody =>
+      'Enter your email and we will send you a reset link.';
+
+  @override
+  String get forgotPasswordSent =>
+      'If the account exists, a reset link has been sent.';
+
+  @override
+  String get send => 'Send';
+
+  @override
+  String get phoneNotReady => 'Phone service is not ready.';
 }

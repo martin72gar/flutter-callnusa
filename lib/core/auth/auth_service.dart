@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../../features/provisioning/provisioning_service.dart';
 import '../../shared/models/app_exception.dart';
+import '../api/device_repository.dart';
 import '../database/app_database.dart';
 import '../diagnostics/logger.dart';
 import '../notification/callkit_service.dart';
@@ -25,6 +26,7 @@ class AuthService {
     required this._push,
     required this._callKit,
     required this._database,
+    required this._devices,
   });
 
   final AuthRepository _repository;
@@ -34,6 +36,7 @@ class AuthService {
   final PushService _push;
   final CallKitService _callKit;
   final AppDatabase _database;
+  final DeviceRepository _devices;
 
   final _controller = StreamController<AuthState>.broadcast();
   AuthState _state = const AuthState();
@@ -73,6 +76,9 @@ class AuthService {
     await _push.start();
   }
 
+  Future<void> forgotPassword(String email) =>
+      _repository.forgotPassword(email);
+
   /// Signals from the API layer that the refresh token is no longer valid.
   Future<void> onSessionExpired() async {
     if (_state.status == AuthStatus.unauthenticated) return;
@@ -100,6 +106,7 @@ class AuthService {
     await _sip.stop();
     await _provisioning.clear();
     await _push.deleteToken();
+    await _devices.revokeCurrent();
     await _database.clearUserData();
     await _storage.clearSession();
   }

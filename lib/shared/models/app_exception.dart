@@ -5,6 +5,8 @@ enum AppErrorKind {
   unauthorized,
   forbidden,
   notFound,
+  validation,
+  rateLimited,
   server,
   provisioning,
   sip,
@@ -17,12 +19,26 @@ enum AppErrorKind {
 ///
 /// Never carries secrets: only backend error codes and safe detail values.
 class AppException implements Exception {
-  const AppException(this.kind, {this.code, this.message, this.statusCode});
+  const AppException(
+    this.kind, {
+    this.code,
+    this.message,
+    this.statusCode,
+    this.details = const {},
+    this.correlationId,
+  });
 
   final AppErrorKind kind;
   final String? code;
   final String? message;
   final int? statusCode;
+
+  /// Field-level validation errors (`error.details`), keyed by field name.
+  final Map<String, dynamic> details;
+
+  /// `X-Correlation-ID` of the failing response; quote it in bug reports so
+  /// it can be matched against server logs.
+  final String? correlationId;
 
   bool get isRetryable =>
       kind == AppErrorKind.network ||
@@ -32,5 +48,6 @@ class AppException implements Exception {
   @override
   String toString() =>
       'AppException(${kind.name}${code == null ? '' : ', $code'}'
-      '${statusCode == null ? '' : ', http $statusCode'})';
+      '${statusCode == null ? '' : ', http $statusCode'}'
+      '${correlationId == null ? '' : ', cid=$correlationId'})';
 }

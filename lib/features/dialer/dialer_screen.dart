@@ -5,6 +5,7 @@ import '../../app/providers.dart';
 import '../../shared/models/app_exception.dart';
 import '../../shared/utils/error_messages.dart';
 import '../../shared/utils/extensions.dart';
+import '../provisioning/provisioning_state.dart';
 import 'dial_pad_widget.dart';
 import 'dialer_view_model.dart';
 
@@ -53,11 +54,17 @@ class DialerScreen extends ConsumerWidget {
                 : context.texts.displaySmall,
           ),
         ),
-        if (!provisioning.canDialOut && provisioning.isReady)
+        // Provisioning failures are distinct states (no extension, plan
+        // limit, device limit/revoked), not a generic toast.
+        if (provisioning.status == ProvisioningStatus.failed ||
+            (!provisioning.canDialOut && provisioning.isReady))
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              l10n.outboundCallingDisabled,
+              provisioning.status == ProvisioningStatus.failed
+                  ? messageFor(l10n, provisioning.error)
+                  : l10n.outboundCallingDisabled,
+              textAlign: TextAlign.center,
               style: context.texts.bodySmall?.copyWith(
                 color: context.colors.error,
               ),

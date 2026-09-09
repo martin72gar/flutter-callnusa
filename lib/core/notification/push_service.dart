@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:io';
-
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
@@ -101,12 +99,9 @@ class PushService {
   Future<void> _syncToken() async {
     final token = await _messaging.getToken();
     if (token == null) return;
-    // iOS wake-up for terminated apps uses PushKit, whose token comes from the
-    // CallKit plugin rather than FCM.
-    final voipToken = Platform.isIOS
-        ? await FlutterCallkitIncoming.getDevicePushTokenVoIP()
-        : null;
-    await _devices.registerPushToken(pushToken: token, voipToken: voipToken);
+    // ponytail: backend only accepts one push_token; iOS PushKit VoIP token
+    // is not sent until the API grows a field for it.
+    await _devices.register(pushToken: token);
   }
 
   void _onForegroundMessage(RemoteMessage message) {

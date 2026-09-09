@@ -637,6 +637,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Something went wrong. Please try again.'**
   String get errorUnknown;
+
+  /// No description provided for @errorRateLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many attempts. Please wait a moment and try again.'**
+  String get errorRateLimited;
+
+  /// No description provided for @errorPlanLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Your organisation\'s plan does not allow this device to be provisioned. Contact your administrator.'**
+  String get errorPlanLimit;
+
+  /// No description provided for @errorDeviceUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This device has been revoked. Sign out and sign in again to register it as a new device.'**
+  String get errorDeviceUnavailable;
+
+  /// No description provided for @forgotPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Forgot password?'**
+  String get forgotPassword;
+
+  /// No description provided for @forgotPasswordBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your email and we will send you a reset link.'**
+  String get forgotPasswordBody;
+
+  /// No description provided for @forgotPasswordSent.
+  ///
+  /// In en, this message translates to:
+  /// **'If the account exists, a reset link has been sent.'**
+  String get forgotPasswordSent;
+
+  /// No description provided for @send.
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get send;
+
+  /// No description provided for @phoneNotReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone service is not ready.'**
+  String get phoneNotReady;
 }
 
 class _AppLocalizationsDelegate

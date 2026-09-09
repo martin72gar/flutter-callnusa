@@ -20,6 +20,7 @@ class AppConstants {
   static const String kUser = 'auth.user';
   static const String kSipConfig = 'sip.config';
   static const String kDeviceId = 'device.id';
+  static const String kDevicePublicId = 'device.public_id';
 
   // SIP registration backoff (PRD 6.3).
   static const Duration registerBackoffInitial = Duration(seconds: 1);

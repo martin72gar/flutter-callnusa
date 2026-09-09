@@ -66,6 +66,9 @@ class ApiClient {
   Future<Map<String, dynamic>> put(String path, {Object? body}) =>
       _guard(() => dio.put<Map<String, dynamic>>(path, data: body));
 
+  Future<Map<String, dynamic>> delete(String path) =>
+      _guard(() => dio.delete<Map<String, dynamic>>(path));
+
   Future<Map<String, dynamic>> _guard(
     Future<Response<Map<String, dynamic>>> Function() request,
   ) async {

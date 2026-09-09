@@ -82,10 +82,8 @@ class AppDependencies {
     provisioning = ProvisioningService(api: api, storage: storage, sip: sip);
 
     final callKit = CallKitService();
-    final push = PushService(
-      devices: DeviceRepository(api, storage),
-      callKit: callKit,
-    );
+    final devices = DeviceRepository(api, storage, appVersion: appVersion);
+    final push = PushService(devices: devices, callKit: callKit);
 
     auth = AuthService(
       repository: AuthRepository(api, storage),
@@ -95,6 +93,7 @@ class AppDependencies {
       push: push,
       callKit: callKit,
       database: database,
+      devices: devices,
     );
 
     await sip.start();

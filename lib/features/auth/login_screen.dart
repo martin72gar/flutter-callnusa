@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../config/constants.dart';
 import '../../core/auth/auth_state.dart';
+import '../../shared/models/app_exception.dart';
 import '../../shared/utils/error_messages.dart';
 import '../../shared/utils/extensions.dart';
 import '../../shared/utils/validators.dart';
@@ -40,6 +41,46 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         .read(authServiceProvider)
         .login(email: _email.text.trim(), password: _password.text);
     _password.clear();
+  }
+
+  Future<void> _forgotPassword() async {
+    final l10n = context.l10n;
+    final controller = TextEditingController(text: _email.text.trim());
+    final email = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.forgotPassword),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.emailAddress,
+          decoration: InputDecoration(
+            labelText: l10n.emailLabel,
+            helperText: l10n.forgotPasswordBody,
+            helperMaxLines: 2,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: Text(l10n.send),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (email == null || !Validators.isEmail(email) || !mounted) return;
+    try {
+      await ref.read(authServiceProvider).forgotPassword(email);
+      if (mounted) context.showSnack(l10n.forgotPasswordSent);
+    } on AppException catch (e) {
+      // RATE_LIMITED lands here as a friendly "try again later".
+      if (mounted) context.showSnack(messageFor(l10n, e));
+    }
   }
 
   @override
@@ -117,6 +158,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         label: auth.isBusy ? l10n.signingIn : l10n.signIn,
                         busy: auth.isBusy,
                         onPressed: _submit,
+                      ),
+                      TextButton(
+                        onPressed: auth.isBusy ? null : _forgotPassword,
+                        child: Text(l10n.forgotPassword),
                       ),
                     ],
                   ),

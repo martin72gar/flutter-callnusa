@@ -67,6 +67,40 @@ class CallHistoryEntry {
     isLocal: isLocal ?? this.isLocal,
   );
 
+  /// Row from `GET /api/v1/calls`: `{public_id, direction, source,
+  /// destination, status: ringing|answered|missed, started_at, answered_at,
+  /// ended_at, duration}`.
+  factory CallHistoryEntry.fromApi(Map<String, dynamic> json) {
+    final direction = json['direction'] == 'outbound'
+        ? CallDirection.outbound
+        : CallDirection.inbound;
+    final status = json['status'] as String?;
+    return CallHistoryEntry(
+      id: '${json['public_id'] ?? json['id']}',
+      direction: direction,
+      counterpartyNumber:
+          (direction == CallDirection.inbound
+                  ? json['source']
+                  : json['destination'])
+              as String? ??
+          '',
+      result: switch (status) {
+        'answered' => CallResult.answered,
+        'missed' => CallResult.missed,
+        _ => CallResult.failed,
+      },
+      startedAt: DateTime.parse(json['started_at'] as String).toLocal(),
+      answeredAt: _date(json['answered_at']),
+      endedAt: _date(json['ended_at']),
+      durationSeconds: (json['duration'] as num?)?.toInt() ?? 0,
+      isLocal: false,
+    );
+  }
+
+  static DateTime? _date(Object? v) =>
+      v == null ? null : DateTime.parse(v as String).toLocal();
+
+  /// Local cache shape (see [toJson]).
   factory CallHistoryEntry.fromJson(Map<String, dynamic> json) =>
       CallHistoryEntry(
         id: '${json['id']}',

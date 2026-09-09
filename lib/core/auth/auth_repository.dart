@@ -35,11 +35,21 @@ class AuthRepository {
       refreshToken: data['refresh_token'] as String?,
     );
 
-    final user = User.fromJson((data['user'] as Map).cast<String, dynamic>());
+    // Login returns tokens only; the user (role, tenant) comes from /me.
+    final me = await _api.get(ApiEndpoints.me);
+    final user = User.fromJson((me['data'] as Map).cast<String, dynamic>());
     await _storage.saveUser(user);
     log.info('auth', 'login succeeded for user ${user.id}');
     return LoginResult(user);
   }
+
+  /// Always succeeds server-side (no account enumeration); the reset link is
+  /// delivered by email.
+  Future<void> forgotPassword(String email) => _api.post(
+    ApiEndpoints.forgotPassword,
+    body: {'email': email},
+    skipAuth: true,
+  );
 
   /// Best-effort session revocation. A failure here must not block logout:
   /// local credentials are cleared either way.

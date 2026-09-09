@@ -1,7 +1,6 @@
 {
   "@@locale": "en",
   "appName": "CallNusa",
-
   "loginTitle": "Sign in",
   "loginSubtitle": "Sign in with your CallNusa account",
   "emailLabel": "Email",
@@ -11,26 +10,33 @@
   "emailRequired": "Enter your email address",
   "emailInvalid": "That email address is not valid",
   "passwordRequired": "Enter your password",
-
   "tabDialer": "Dialer",
   "tabHistory": "History",
   "tabSettings": "Settings",
-
   "registrationConnecting": "Connecting…",
   "registrationRegistered": "Ready",
   "registrationRefreshing": "Refreshing…",
   "registrationFailed": "Not connected",
   "registrationUnregistered": "Offline",
   "registrationRetryIn": "Retrying in {seconds}s",
-  "@registrationRetryIn": { "placeholders": { "seconds": { "type": "int" } } },
-
+  "@registrationRetryIn": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
   "extensionLabel": "Extension {extension}",
-  "@extensionLabel": { "placeholders": { "extension": { "type": "String" } } },
-
+  "@extensionLabel": {
+    "placeholders": {
+      "extension": {
+        "type": "String"
+      }
+    }
+  },
   "dialerHint": "Enter number or extension",
   "call": "Call",
   "outboundCallingDisabled": "Outbound calling is disabled for your account",
-
   "incomingCall": "Incoming call",
   "outgoingCall": "Calling…",
   "callRinging": "Ringing…",
@@ -40,7 +46,6 @@
   "callEnded": "Call ended",
   "callFailed": "Call failed",
   "unknownCaller": "Unknown",
-
   "mute": "Mute",
   "unmute": "Unmute",
   "hold": "Hold",
@@ -51,7 +56,6 @@
   "decline": "Decline",
   "hangUp": "End",
   "recordingNotice": "This call may be recorded",
-
   "historyTitle": "Call history",
   "filterAll": "All",
   "filterMissed": "Missed",
@@ -63,7 +67,6 @@
   "failed": "Failed",
   "today": "Today",
   "yesterday": "Yesterday",
-
   "settingsTitle": "Settings",
   "sectionAudio": "Audio",
   "sectionNotifications": "Notifications",
@@ -86,7 +89,6 @@
   "cancel": "Cancel",
   "retry": "Retry",
   "ok": "OK",
-
   "errorNetwork": "No connection. Check your network and try again.",
   "errorTimeout": "The server took too long to respond.",
   "errorInvalidCredentials": "Email or password is incorrect.",
@@ -101,5 +103,13 @@
   "errorBusy": "The line is busy.",
   "errorNotFound": "That number does not exist.",
   "errorMicPermission": "Microphone access is required to make calls.",
-  "errorUnknown": "Something went wrong. Please try again."
+  "errorUnknown": "Something went wrong. Please try again.",
+  "errorRateLimited": "Too many attempts. Please wait a moment and try again.",
+  "errorPlanLimit": "Your organisation's plan does not allow this device to be provisioned. Contact your administrator.",
+  "errorDeviceUnavailable": "This device has been revoked. Sign out and sign in again to register it as a new device.",
+  "forgotPassword": "Forgot password?",
+  "forgotPasswordBody": "Enter your email and we will send you a reset link.",
+  "forgotPasswordSent": "If the account exists, a reset link has been sent.",
+  "send": "Send",
+  "phoneNotReady": "Phone service is not ready."
 }
