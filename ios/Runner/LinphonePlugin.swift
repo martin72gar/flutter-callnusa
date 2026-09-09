@@ -3,314 +3,344 @@ import linphonesw
 
 /// Liblinphone bridge for the Dart `LinphoneService`.
 ///
-/// Mirrors `android/.../LinphonePlugin.kt` method for method; the two must stay
-/// in sync because a single Dart contract sits on top of both.
+/// Mirrors `android/app/src/main/kotlin/.../LinphonePlugin.kt` method-for-method
+/// so both platforms speak the exact same channel contract (see
+/// `lib/core/sip/linphone_service.dart`). All Core access happens on the main
+/// thread: the Swift wrapper's Core is not thread-safe and iOS schedules its
+/// own iterate loop internally once `start()` is called.
 ///
-/// Incoming calls while the app is terminated arrive as a PushKit VoIP push
-/// handled by `flutter_callkit_incoming`; iOS then keeps the process alive long
-/// enough for the Core to receive the INVITE that follows.
-class LinphonePlugin: NSObject, FlutterStreamHandler {
-
+/// The Core assigns no stable identifier to a call before it is connected, so
+/// this class mints a UUID per `Call` and keeps the mapping; Dart, CallKit and
+/// PushKit all key on that id.
+final class LinphonePlugin: NSObject, CoreDelegate, FlutterStreamHandler {
     static let methodChannel = "id.callnusa/linphone"
     static let eventChannel = "id.callnusa/linphone/events"
 
     private var core: Core?
-    private var events: FlutterEventSink?
-    private var coreDelegate: CoreDelegateStub?
+    private var eventSink: FlutterEventSink?
 
-    /// Liblinphone has no stable pre-connection call id, so one is minted per
-    /// call and shared with Dart and CallKit.
-    private var callIds: [Call: String] = [:]
+    private var callIds: [ObjectIdentifier: String] = [:]
+    private var callsById: [String: Call] = [:]
 
-    private func id(for call: Call) -> String {
-        if let existing = callIds[call] { return existing }
-        let generated = UUID().uuidString
-        callIds[call] = generated
-        return generated
-    }
-
-    private func call(for id: String?) -> Call? {
-        callIds.first { $0.value == id }?.key
+    private struct PluginError: Error {
+        let code: String
+        let message: String
     }
 
     // MARK: - FlutterStreamHandler
 
-    func onListen(withArguments _: Any?, eventSink: @escaping FlutterEventSink) -> FlutterError? {
-        events = eventSink
+    func onListen(withArguments arguments: Any?, eventSink: @escaping FlutterEventSink) -> FlutterError? {
+        self.eventSink = eventSink
         return nil
     }
 
-    func onCancel(withArguments _: Any?) -> FlutterError? {
-        events = nil
+    func onCancel(withArguments arguments: Any?) -> FlutterError? {
+        eventSink = nil
         return nil
     }
 
     private func emit(_ payload: [String: Any?]) {
-        DispatchQueue.main.async { self.events?(payload) }
-    }
-
-    // MARK: - Method channel
-
-    func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-        let args = call.arguments as? [String: Any] ?? [:]
-        do {
-            switch call.method {
-            case "initialize":
-                try initialize(
-                    userAgent: args["userAgent"] as? String,
-                    verbose: args["verbose"] as? Bool ?? false
-                )
-                result(nil)
-
-            case "setAccount":
-                try setAccount(args)
-                result(nil)
-
-            case "clearAccount":
-                clearAccount()
-                result(nil)
-
-            case "refreshRegistration":
-                core?.refreshRegisters()
-                result(nil)
-
-            case "setNetworkReachable":
-                core?.networkReachable = args["reachable"] as? Bool ?? true
-                result(nil)
-
-            case "startCall":
-                result(try startCall(destination: args["destination"] as? String))
-
-            case "acceptCall":
-                try withCall(args, result) { try $0.accept() }
-
-            case "declineCall":
-                try withCall(args, result) { try $0.decline(reason: .Declined) }
-
-            case "endCall":
-                try withCall(args, result) { try $0.terminate() }
-
-            case "setMuted":
-                try withCall(args, result) { $0.microphoneMuted = args["muted"] as? Bool ?? false }
-
-            case "setHeld":
-                try withCall(args, result) {
-                    if args["held"] as? Bool == true { try $0.pause() } else { try $0.resume() }
-                }
-
-            case "setAudioRoute":
-                setAudioRoute(args["route"] as? String)
-                result(nil)
-
-            case "sendDtmf":
-                try withCall(args, result) {
-                    if let digit = (args["digit"] as? String)?.first {
-                        try $0.sendDtmf(dtmf: CChar(digit.asciiValue ?? 0))
-                    }
-                }
-
-            case "dispose":
-                core?.stop()
-                core = nil
-                result(nil)
-
-            default:
-                result(FlutterMethodNotImplemented)
-            }
-        } catch {
-            // Only the error type is returned: liblinphone messages can contain
-            // the proxy URI and SIP headers.
-            result(FlutterError(code: "SIP_ERROR", message: "\(type(of: error))", details: nil))
+        DispatchQueue.main.async { [weak self] in
+            self?.eventSink?(payload)
         }
     }
 
-    private func withCall(
-        _ args: [String: Any],
-        _ result: @escaping FlutterResult,
-        _ action: (Call) throws -> Void
-    ) throws {
-        guard let target = call(for: args["callId"] as? String) else {
-            result(FlutterError(code: "CALL_NOT_FOUND", message: "No such call", details: nil))
-            return
-        }
-        try action(target)
-        result(nil)
-    }
+    // MARK: - CoreDelegate
 
-    // MARK: - Core
-
-    private func initialize(userAgent: String?, verbose: Bool) throws {
-        guard core == nil else { return }
-
-        let factory = Factory.Instance
-        factory.enableLogCollection(state: verbose ? .Enabled : .Disabled)
-
-        let core = try factory.createCore(configPath: nil, factoryConfigPath: nil, systemContext: nil)
-        if let userAgent { core.setUserAgent(name: userAgent, version: nil) }
-
-        // CallKit owns the ringtone and the audio session.
-        core.callkitEnabled = true
-        core.pushNotificationEnabled = true
-        core.nativeRingingEnabled = false
-
-        let delegate = CoreDelegateStub(
-            onCallStateChanged: { [weak self] (_, call, state, _) in
-                self?.onCallState(call, state)
-            },
-            onAccountRegistrationStateChanged: { [weak self] (_, account, state, message) in
-                self?.onRegistrationState(account, state, message)
-            }
-        )
-        core.addDelegate(delegate: delegate)
-        coreDelegate = delegate
-
-        try core.start()
-        self.core = core
-    }
-
-    private func onRegistrationState(
-        _ account: Account,
-        _ state: RegistrationState,
-        _ message: String
+    func onAccountRegistrationStateChanged(
+        core: Core, account: Account, state: RegistrationState, message: String
     ) {
+        // 401/403/407 mean the device secret was rotated or revoked: Dart
+        // re-provisions instead of retrying with a dead password.
         let authFailure = account.error == .Forbidden || account.error == .Unauthorized
+
+        let stateName: String
+        switch state {
+        case .Progress: stateName = "progress"
+        case .Ok: stateName = "ok"
+        case .Refreshing: stateName = "refreshing"
+        case .Failed: stateName = "failed"
+        case .Cleared, .None: stateName = "cleared"
+        }
+
         emit([
             "type": "registration",
-            "state": {
-                switch state {
-                case .Progress: return "progress"
-                case .Ok: return "ok"
-                case .Refreshing: return "refreshing"
-                case .Failed: return "failed"
-                case .Cleared: return "cleared"
-                default: return "none"
-                }
-            }(),
+            "state": stateName,
+            // `message` may name the registrar; it never carries the secret.
             "reason": message,
             "authFailure": authFailure,
         ])
     }
 
-    private func onCallState(_ call: Call, _ state: Call.State) {
-        let callId = id(for: call)
+    func onCallStateChanged(core: Core, call: Call, state: Call.State, message: String) {
+        let id = idOf(call)
+        let incoming = call.dir == .Incoming
+
+        let stateName: String
+        switch state {
+        case .IncomingReceived, .IncomingEarlyMedia: stateName = "incoming"
+        case .OutgoingInit, .OutgoingProgress: stateName = "outgoing_init"
+        case .OutgoingRinging: stateName = "outgoing_ringing"
+        case .OutgoingEarlyMedia: stateName = "outgoing_early_media"
+        case .Connected, .StreamsRunning, .Resuming: stateName = "connected"
+        case .Paused, .PausedByRemote: stateName = "paused"
+        case .End: stateName = "ended"
+        case .Released: stateName = "released"
+        case .Error: stateName = "error"
+        default: stateName = "unknown"
+        }
+
+        let reasonName: String
+        switch call.reason {
+        case .Busy: reasonName = "busy"
+        case .Declined: reasonName = "declined"
+        case .NotFound: reasonName = "not_found"
+        case .NotAnswered: reasonName = "no_answer"
+        case .None: reasonName = "normal"
+        default: reasonName = "error"
+        }
+
         emit([
             "type": "call",
-            "callId": callId,
-            "isIncoming": call.dir == .Incoming,
+            "callId": id,
+            "isIncoming": incoming,
             "remoteNumber": call.remoteAddress?.username ?? "",
             "remoteName": call.remoteAddress?.displayName ?? "",
-            "state": {
-                switch state {
-                case .IncomingReceived, .IncomingEarlyMedia: return "incoming"
-                case .OutgoingInit, .OutgoingProgress: return "outgoing_init"
-                case .OutgoingRinging: return "outgoing_ringing"
-                case .OutgoingEarlyMedia: return "outgoing_early_media"
-                case .Connected, .StreamsRunning, .Resuming: return "connected"
-                case .Paused, .PausedByRemote: return "paused"
-                case .End: return "ended"
-                case .Released: return "released"
-                case .Error: return "error"
-                default: return "unknown"
-                }
-            }(),
-            "reason": {
-                switch call.reason {
-                case .Busy: return "busy"
-                case .Declined: return "declined"
-                case .NotFound: return "not_found"
-                case .NotAnswered: return "no_answer"
-                case .None: return "normal"
-                default: return "error"
-                }
-            }(),
+            "state": stateName,
+            "reason": reasonName,
         ])
 
-        if state == .Released { callIds.removeValue(forKey: call) }
+        if state == .Released {
+            callIds.removeValue(forKey: ObjectIdentifier(call))
+            callsById.removeValue(forKey: id)
+        }
     }
 
-    private func setAccount(_ args: [String: Any]) throws {
-        guard let core else { return }
+    private func idOf(_ call: Call) -> String {
+        let key = ObjectIdentifier(call)
+        if let existing = callIds[key] { return existing }
+        let id = UUID().uuidString
+        callIds[key] = id
+        callsById[id] = call
+        return id
+    }
+
+    private func call(for id: String?) -> Call? {
+        guard let id else { return nil }
+        return callsById[id]
+    }
+
+    // MARK: - Method channel
+
+    func handle(_ methodCall: FlutterMethodCall, result: @escaping FlutterResult) {
+        do {
+            switch methodCall.method {
+            case "initialize":
+                try initialize(
+                    userAgent: methodCall.arg("userAgent"),
+                    verbose: methodCall.arg("verbose") ?? false
+                )
+                result(nil)
+            case "setAccount":
+                try setAccount(methodCall)
+                result(nil)
+            case "clearAccount":
+                clearAccount()
+                result(nil)
+            case "refreshRegistration":
+                core?.refreshRegisters()
+                result(nil)
+            case "setNetworkReachable":
+                core?.networkReachable = methodCall.arg("reachable") ?? true
+                result(nil)
+            case "startCall":
+                result(try startCall(methodCall.arg("destination")))
+            case "acceptCall":
+                try withCall(methodCall) { try $0.accept() }
+                result(nil)
+            case "declineCall":
+                try withCall(methodCall) { try $0.decline(reason: .Declined) }
+                result(nil)
+            case "endCall":
+                try withCall(methodCall) { try $0.terminate() }
+                result(nil)
+            case "setMuted":
+                try withCall(methodCall) { $0.microphoneMuted = methodCall.arg("muted") ?? false }
+                result(nil)
+            case "setHeld":
+                try withCall(methodCall) {
+                    if methodCall.arg("held") == true { try $0.pause() } else { try $0.resume() }
+                }
+                result(nil)
+            case "setAudioRoute":
+                setAudioRoute(methodCall.arg("route"))
+                result(nil)
+            case "sendDtmf":
+                try withCall(methodCall) {
+                    let digit: String = methodCall.arg("digit") ?? " "
+                    try $0.sendDtmf(dtmf: CChar(bitPattern: digit.utf8.first ?? 32))
+                }
+                result(nil)
+            case "dispose":
+                core?.stop()
+                core = nil
+                result(nil)
+            default:
+                result(FlutterMethodNotImplemented)
+            }
+        } catch let error as PluginError {
+            result(FlutterError(code: error.code, message: error.message, details: nil))
+        } catch {
+            // Never echo the underlying error verbatim: liblinphone errors can
+            // include the SIP proxy URI and headers.
+            result(FlutterError(code: "SIP_ERROR", message: "\(type(of: error))", details: nil))
+        }
+    }
+
+    private func withCall(_ methodCall: FlutterMethodCall, _ action: (Call) throws -> Void) throws {
+        guard let target = call(for: methodCall.arg("callId")) else {
+            throw PluginError(code: "CALL_NOT_FOUND", message: "No such call")
+        }
+        try action(target)
+    }
+
+    private func initialize(userAgent: String?, verbose: Bool) throws {
+        if core != nil { return }
+
+        LoggingService.Instance.domain = "CallNusa"
+        LoggingService.Instance.logLevel = verbose ? .Message : .Error
+
         let factory = Factory.Instance
+        let newCore = try factory.createCore(configPath: nil, factoryConfigPath: nil, systemContext: nil)
+        newCore.addDelegate(delegate: self)
+        if let userAgent { newCore.setUserAgent(name: userAgent, version: nil) }
+        // Push-driven wake-ups replace aggressive keepalives; CallKit owns the
+        // ringtone so the Core must not ring natively.
+        newCore.pushNotificationEnabled = true
+        newCore.nativeRingingEnabled = false
+        try newCore.start()
+        core = newCore
+    }
 
-        let domain = args["domain"] as! String
-        let username = args["username"] as! String
-        let password = args["password"] as! String
-        let transport = args["transport"] as? String ?? "tls"
-        let port = args["port"] as? Int ?? 5061
-        let srtp = args["srtp"] as? String ?? "mandatory"
-        let codecs = (args["codecs"] as? [String] ?? ["opus", "pcmu", "pcma"]).map { $0.lowercased() }
-        let expires = args["expires"] as? Int ?? 600
-        let proxyHost = args["proxy"] as? String ?? domain
+    private func setAccount(_ methodCall: FlutterMethodCall) throws {
+        guard let core else {
+            throw PluginError(code: "NOT_INITIALIZED", message: "Core not started")
+        }
+        guard
+            let domain: String = methodCall.arg("domain"),
+            let username: String = methodCall.arg("username"),
+            let password: String = methodCall.arg("password")
+        else {
+            throw PluginError(code: "INVALID_ARGUMENT", message: "Missing account fields")
+        }
+        let transport: String = methodCall.arg("transport") ?? "tls"
+        let port: Int = methodCall.arg("port") ?? 5061
+        let srtp: String = methodCall.arg("srtp") ?? "mandatory"
+        let codecs: [String] = methodCall.arg("codecs") ?? ["opus", "pcmu", "pcma"]
+        let expirySeconds: Int = methodCall.arg("expires") ?? 600
+        let displayName: String? = methodCall.arg("display_name")
+        let proxyHost: String = methodCall.arg("proxy") ?? domain
 
-        // Replace, never accumulate: a stale account would keep re-registering.
+        // Replace any previous account rather than accumulating registrations.
         core.clearAccounts()
         core.clearAllAuthInfo()
 
-        let authInfo = try factory.createAuthInfo(
-            username: username, userid: nil, passwd: password,
-            ha1: nil, realm: nil, domain: domain
-        )
-        core.addAuthInfo(info: authInfo)
+        let factory = Factory.Instance
+        core.addAuthInfo(info: try factory.createAuthInfo(
+            username: username, userid: nil, passwd: password, ha1: nil, realm: nil, domain: domain
+        ))
+
+        let transportType: TransportType
+        switch transport {
+        case "tcp": transportType = .Tcp
+        case "udp": transportType = .Udp
+        default: transportType = .Tls
+        }
 
         let params = try core.createAccountParams()
-        try params.setIdentityaddress(newValue: try factory.createAddress(addr: "sip:\(username)@\(domain)"))
 
-        let server = try factory.createAddress(addr: "sip:\(proxyHost):\(port)")
-        try server.setTransport(newValue: {
-            switch transport {
-            case "tcp": return .Tcp
-            case "udp": return .Udp
-            default: return .Tls
-            }
-        }())
-        try params.setServeraddress(newValue: server)
+        let identityAddress = try factory.createAddress(addr: "sip:\(username)@\(domain)")
+        if let displayName, !displayName.isEmpty {
+            try identityAddress.setDisplayname(newValue: displayName)
+        }
+        try params.setIdentityaddress(newValue: identityAddress)
+
+        let serverAddress = try factory.createAddress(addr: "sip:\(proxyHost):\(port)")
+        try serverAddress.setTransport(newValue: transportType)
+        try params.setServeraddress(newValue: serverAddress)
+
         params.registerEnabled = true
-        params.expires = expires
-        params.pushNotificationAllowed = true
+        params.expires = expirySeconds
+        // Keeps the registration binding alive across NAT rebinds.
+        params.outboundProxyEnabled = true
 
         let account = try core.createAccount(params: params)
         try core.addAccount(account: account)
         core.defaultAccount = account
 
-        core.mediaEncryption = srtp == "disabled" ? .None : .SRTP
+        try core.setMediaencryption(newValue: srtp == "disabled" ? .None : .SRTP)
         core.mediaEncryptionMandatory = srtp == "mandatory"
 
+        applyCodecs(core, codecs)
+    }
+
+    /// Enables exactly the offered codecs, in the backend's preference order.
+    private func applyCodecs(_ core: Core, _ codecs: [String]) {
+        let wanted = Set(codecs.map { $0.lowercased() })
         for payload in core.audioPayloadTypes {
-            _ = payload.enable(enabled: codecs.contains(payload.mimeType.lowercased()))
+            _ = payload.enable(enabled: wanted.contains(payload.mimeType.lowercased()))
         }
     }
 
     private func clearAccount() {
-        core?.clearAccounts()
-        core?.clearAllAuthInfo()
+        guard let core else { return }
+        if let account = core.defaultAccount, let params = account.params?.clone() {
+            params.registerEnabled = false
+            account.params = params
+        }
+        core.clearAccounts()
+        core.clearAllAuthInfo()
     }
 
-    private func startCall(destination: String?) throws -> String {
-        guard let core else { throw LinphoneError.exception(result: "Core not started") }
-        guard let destination, !destination.isEmpty else {
-            throw LinphoneError.exception(result: "Empty destination")
+    private func startCall(_ destination: String?) throws -> String {
+        guard let core else {
+            throw PluginError(code: "NOT_INITIALIZED", message: "Core not started")
         }
-        let domain = core.defaultAccount?.params?.identityAddress?.domain ?? ""
-        let uri = destination.hasPrefix("sip:") ? destination : "sip:\(destination)@\(domain)"
+        guard let destination, !destination.trimmingCharacters(in: .whitespaces).isEmpty else {
+            throw PluginError(code: "INVALID_DESTINATION", message: "Empty destination")
+        }
+        let domain = core.defaultAccount?.params?.identityAddress?.domain
+        let uri = destination.hasPrefix("sip:") ? destination : "sip:\(destination)@\(domain ?? "")"
+        guard let address = try? Factory.Instance.createAddress(addr: uri) else {
+            throw PluginError(code: "INVALID_DESTINATION", message: "Not a valid SIP address")
+        }
 
-        guard let call = core.invite(url: uri) else {
-            throw LinphoneError.exception(result: "Core refused the invite")
+        let callParams = try core.createCallParams(call: nil)
+        guard let call = core.inviteAddressWithParams(addr: address, params: callParams) else {
+            throw PluginError(code: "CALL_NOT_STARTED", message: "Core refused the invite")
         }
-        return id(for: call)
+        return idOf(call)
     }
 
     private func setAudioRoute(_ route: String?) {
         guard let core else { return }
-        let type: AudioDeviceType = {
-            switch route {
-            case "speaker": return .Speaker
-            case "bluetooth": return .Bluetooth
-            case "headset": return .Headphones
-            default: return .Microphone
-            }
-        }()
-        if let device = core.audioDevices.first(where: { $0.type == type && $0.hasCapability(capability: .CapabilityPlay) }) {
+        let kind: AudioDevice.Kind
+        switch route {
+        case "speaker": kind = .Speaker
+        case "bluetooth": kind = .Bluetooth
+        case "headset": kind = .Headphones
+        default: kind = .Earpiece
+        }
+        if let device = core.audioDevices.first(where: {
+            $0.type == kind && $0.hasCapability(capability: .CapabilityPlay)
+        }) {
             core.outputAudioDevice = device
         }
+    }
+}
+
+private extension FlutterMethodCall {
+    func arg<T>(_ key: String) -> T? {
+        (arguments as? [String: Any])?[key] as? T
     }
 }

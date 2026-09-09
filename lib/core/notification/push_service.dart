@@ -68,14 +68,24 @@ class PushService {
     required this._callKit,
     // Injectable so tests can drive push flows without Firebase.
     FirebaseMessaging? messaging,
-  }) : _messaging = messaging ?? FirebaseMessaging.instance;
+  }) : _messaging = messaging ?? _tryGetMessaging();
 
   final DeviceRepository _devices;
   final CallKitService _callKit;
-  final FirebaseMessaging _messaging;
+  // Null when Firebase never initialized (no config files): push is optional,
+  // so the app must still construct and run without it.
+  final FirebaseMessaging? _messaging;
 
   StreamSubscription<RemoteMessage>? _messageSub;
   StreamSubscription<String>? _tokenSub;
+
+  static FirebaseMessaging? _tryGetMessaging() {
+    try {
+      return FirebaseMessaging.instance;
+    } catch (_) {
+      return null;
+    }
+  }
 
   static Future<void> initializeFirebase() async {
     await Firebase.initializeApp();
@@ -85,19 +95,21 @@ class PushService {
   /// Requests permission, uploads the current token, and starts listening.
   /// Failures here are non-fatal: the app still works in the foreground.
   Future<void> start() async {
+    final messaging = _messaging;
+    if (messaging == null) return;
     try {
-      await _messaging.requestPermission(alert: true, badge: true, sound: true);
+      await messaging.requestPermission(alert: true, badge: true, sound: true);
 
-      await _syncToken();
-      _tokenSub ??= _messaging.onTokenRefresh.listen((_) => _syncToken());
+      await _syncToken(messaging);
+      _tokenSub ??= messaging.onTokenRefresh.listen((_) => _syncToken(messaging));
       _messageSub ??= FirebaseMessaging.onMessage.listen(_onForegroundMessage);
     } catch (e) {
       log.error('push', 'push registration failed', e);
     }
   }
 
-  Future<void> _syncToken() async {
-    final token = await _messaging.getToken();
+  Future<void> _syncToken(FirebaseMessaging messaging) async {
+    final token = await messaging.getToken();
     if (token == null) return;
     // ponytail: backend only accepts one push_token; iOS PushKit VoIP token
     // is not sent until the API grows a field for it.
@@ -119,8 +131,10 @@ class PushService {
   }
 
   Future<void> deleteToken() async {
+    final messaging = _messaging;
+    if (messaging == null) return;
     try {
-      await _messaging.deleteToken();
+      await messaging.deleteToken();
     } catch (e) {
       log.warn('push', 'could not delete push token: $e');
     }

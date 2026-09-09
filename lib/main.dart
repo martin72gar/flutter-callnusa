@@ -13,15 +13,21 @@ import 'core/notification/push_service.dart';
 /// Shared entrypoint for every flavor. `main_<flavor>.dart` passes the flavor
 /// explicitly; running this file directly falls back to `--dart-define=FLAVOR`.
 Future<void> runCallNusa({Flavor? flavor}) async {
-  final deps = await AppDependencies.create(flavor: flavor);
+  // Needed before any platform channel call (Firebase below); AppDependencies
+  // .create() also calls this, but ensureInitialized() is idempotent.
+  WidgetsFlutterBinding.ensureInitialized();
 
   // Push is optional: a build without Firebase configuration still works in the
-  // foreground, it just cannot be woken for incoming calls.
+  // foreground, it just cannot be woken for incoming calls. This must run
+  // before AppDependencies.create(), which constructs a PushService that
+  // touches FirebaseMessaging.instance.
   try {
     await PushService.initializeFirebase();
   } catch (e) {
     log.warn('boot', 'Firebase unavailable, push disabled: $e');
   }
+
+  final deps = await AppDependencies.create(flavor: flavor);
 
   // Restore in the background so the first frame is not blocked on I/O.
   unawaited(deps.auth.restore());
