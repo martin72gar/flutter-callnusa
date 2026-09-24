@@ -139,7 +139,7 @@ class LinphonePlugin(private val context: Context) :
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         try {
             when (call.method) {
-                "initialize" -> initialize(call.argument<String>("userAgent"), call.argument<Boolean>("verbose") ?: false, result)
+                "initialize" -> initialize(call.argument<String>("userAgent"), call.argument<Boolean>("verbose") ?: false, call.argument<Boolean>("allowInsecureTls") ?: false, result)
                 "setAccount" -> setAccount(call, result)
                 "clearAccount" -> clearAccount(result)
                 "refreshRegistration" -> {
@@ -192,7 +192,7 @@ class LinphonePlugin(private val context: Context) :
         result.success(null)
     }
 
-    private fun initialize(userAgent: String?, verbose: Boolean, result: MethodChannel.Result) {
+    private fun initialize(userAgent: String?, verbose: Boolean, allowInsecureTls: Boolean, result: MethodChannel.Result) {
         if (core != null) {
             result.success(null)
             return
@@ -208,6 +208,14 @@ class LinphonePlugin(private val context: Context) :
             // needs a short expiry-refresh margin to survive NAT rebinding.
             isPushNotificationEnabled = true
             isNativeRingingEnabled = false // CallKit / Telecom owns the ringtone
+            // Dev-only escape hatch (Env.allowInsecureTransport, forced false
+            // outside the development flavor): accepts the local Docker
+            // Asterisk stack's self-signed TLS certificate without requiring
+            // it to be installed as a trusted CA on the device.
+            if (allowInsecureTls) {
+                verifyServerCertificates(false)
+                verifyServerCn(false)
+            }
             start()
         }
         result.success(null)

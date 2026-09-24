@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -6,7 +8,7 @@ plugins {
 
 android {
     namespace = "id.callnusa.callnusa_mobile"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -17,7 +19,7 @@ android {
     defaultConfig {
         applicationId = "id.callnusa.mobile"
         // Liblinphone and the Telecom APIs used here require Android 6.0+.
-        minSdk = 23
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -43,10 +45,14 @@ android {
         }
     }
 
+    buildFeatures {
+        resValues = true
+    }
+
     signingConfigs {
         create("release") {
             // Populated from android/key.properties, which is git-ignored.
-            val props = java.util.Properties()
+            val props = Properties()
             val propsFile = rootProject.file("key.properties")
             if (propsFile.exists()) {
                 propsFile.inputStream().use { props.load(it) }

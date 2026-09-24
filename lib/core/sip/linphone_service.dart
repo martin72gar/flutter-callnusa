@@ -70,6 +70,10 @@ class LinphoneService implements LinphoneBinding {
     await _invoke('initialize', {
       'userAgent': '${Env.userAgent}/${AppConstants.appName}',
       'verbose': Env.verboseSipLogging,
+      // Dev-only escape hatch: the local Docker Asterisk stack uses a
+      // self-signed certificate for its LAN IP. Same guard as
+      // Env.allowInsecureTransport (forced false outside development).
+      'allowInsecureTls': Env.allowInsecureTransport,
     });
     log.info('sip', 'liblinphone core started');
   }
